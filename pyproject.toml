@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "One SDK for every AI coding agent — Claude Code, Codex CLI, Cursor Agent"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors = [{ name = "AgentSwitch" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
