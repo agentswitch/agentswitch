@@ -18,6 +18,7 @@ classifiers = [
 
 [project.scripts]
 agentswitch = "agentswitch.__main__:main"
+agentchat = "agentchat.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["agentswitch*"]
+include = ["agentswitch*", "agentchat*"]
