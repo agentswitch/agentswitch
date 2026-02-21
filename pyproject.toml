@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentswitch"
+version = "0.1.0"
+description = "One SDK for every AI coding agent — Claude Code, Codex CLI, Cursor Agent"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "AgentSwitch" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development",
+]
+
+[project.scripts]
+agentswitch = "agentswitch.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["agentswitch*"]

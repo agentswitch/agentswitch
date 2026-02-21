@@ -6,11 +6,19 @@ Claude Code, Codex CLI, Cursor Agent — each has its own CLI, its own streaming
 
 AgentSwitch gives you a single async Python interface across all of them. Send a prompt, get a unified event stream. Switch providers mid-conversation. Auto-failover when one is down. Zero dependencies beyond stdlib.
 
-```
-pip install agentswitch
+```bash
+pip install git+https://github.com/agentswitch/agentswitch.git
 ```
 
-> Requires at least one CLI installed: `claude`, `codex`, or `cursor-agent`
+Or build from source:
+
+```bash
+git clone https://github.com/agentswitch/agentswitch.git
+cd agentswitch
+pip install -e .
+```
+
+> Requires Python 3.11+ and at least one CLI installed: `claude`, `codex`, or `cursor-agent`
 
 ## Quick start
 
@@ -158,7 +166,7 @@ What's working today vs what's next:
 | Interactive REPL | Done |
 | Permission levels (default/readonly/full-auto) | Done |
 | Tool use events (start/end/output) | Done |
-| `pip install` packaging | Not yet |
+| `pip install` from source/git | Done |
 | Custom tool injection (MCP passthrough) | Not yet |
 | Bidirectional streaming (long-lived sessions) | Not yet |
 | Provider plugins (bring your own adapter) | Not yet |
