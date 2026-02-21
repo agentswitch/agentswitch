@@ -15,6 +15,15 @@ from agentswitch.models import models_for_provider, resolve_model
 
 from .agent import AGENT_COLORS, AgentConfig, AgentState, ChatAgent
 from .bus import ChatMessage, MessageBus
+from .session import (
+    default_name,
+    delete_session,
+    list_sessions,
+    load_session,
+    save_session,
+    session_path,
+    touch_session,
+)
 
 # ── ANSI helpers ─────────────────────────────────────────────────────────────
 
@@ -286,6 +295,8 @@ _HELP_TEXT = f"""
     {BOLD}/assign @name task{RESET}  Assign a coding task to an agent
     {BOLD}/status{RESET}             Show agent states
     {BOLD}/history{RESET}            Show recent messages
+    {BOLD}/sessions{RESET}           List saved sessions
+    {BOLD}/save [name]{RESET}        Save current session with a name
     {BOLD}/clear{RESET}              Clear the screen
     {BOLD}/help{RESET}               Show this help
     {BOLD}/quit{RESET}               Exit
@@ -341,6 +352,28 @@ async def _handle_command(
         term.redraw()
         return False
 
+    if cmd == "/sessions":
+        sessions = list_sessions()
+        if not sessions:
+            term.println(f"  {DIM}No saved sessions.{RESET}")
+        else:
+            term.println("")
+            for s in sessions:
+                agents_str = ", ".join(s["agents"][:4])
+                term.println(
+                    f"    {BOLD}{s['name']}{RESET} "
+                    f"{DIM}\u2502 {s['workspace']} \u2502 "
+                    f"{agents_str} \u2502 {s['msg_count']} msgs{RESET}"
+                )
+            term.println("")
+        return False
+
+    if cmd == "/save":
+        # args is the optional name
+        term.println(f"  {DIM}Session is auto-saved. "
+                     f"Chat history persists across restarts.{RESET}")
+        return False
+
     if cmd == "/assign":
         m = re.match(r"@(\S+)\s+(.+)", args)
         if not m:
@@ -388,7 +421,12 @@ async def _handle_command(
 MAX_AGENT_ROUNDS = 3  # max agent-to-agent exchanges per human message
 
 
-async def _chat_loop(bus: MessageBus, agents: list[ChatAgent], workspace: str):
+async def _chat_loop(
+    bus: MessageBus,
+    agents: list[ChatAgent],
+    workspace: str,
+    resuming: bool = False,
+):
     team = [a.config for a in agents]
     last_id = 0
     bg_tasks: set[asyncio.Task] = set()
@@ -406,12 +444,28 @@ async def _chat_loop(bus: MessageBus, agents: list[ChatAgent], workspace: str):
     print(f"  {agent_chips}")
     _divider("\u2501", 60)
     print()
+
+    if resuming:
+        # show recent chat history so the user remembers where they left off
+        recent = bus.get_recent(15)
+        if recent:
+            print(f"  {DIM}--- resumed: recent messages ---{RESET}")
+            for msg in recent:
+                rendered = _render_bus_msg(msg, agents)
+                if rendered:
+                    print(rendered)
+                elif msg.sender == "You" and msg.kind == "chat":
+                    print(_fmt_human(msg.body.get("text", "")))
+            print(f"  {DIM}--- end of history ---{RESET}")
+            print()
+        bus.post("system", "system", {"text": "Session resumed."})
+    else:
+        bus.post("system", "system", {"text": "Chat started."})
+
     print(f"  {DIM}Chat with your agents. @name to direct a message.{RESET}")
     print(f"  {DIM}/assign @name task \u2014 give work  |  /help \u2014 commands  |  /quit{RESET}")
     _divider()
     print()
-
-    bus.post("system", "system", {"text": "Chat started."})
 
     with RawTerminal() as term:
         # advance past existing bus messages
@@ -544,19 +598,66 @@ async def main():
         print(f"    {GREEN}\u2713{RESET} {BOLD}{name}{RESET} {DIM}({ver}){RESET} \u2014 {auth}")
     print()
 
-    # workspace
-    workspace = await _ask_workspace()
+    # ── check for saved sessions ─────────────────────────────────────────
+    sessions = list_sessions()
+    resuming = False
+    db_path: str | None = None
+    workspace: str = ""
+    agent_configs: list[AgentConfig] = []
 
-    # agents
-    agent_configs = await _setup_agents(providers)
-    if not agent_configs:
-        print(f"  {RED}No agents configured.{RESET}")
-        return
+    if sessions:
+        print(f"  {BOLD}Saved sessions:{RESET}")
+        for i, s in enumerate(sessions, 1):
+            agents_str = ", ".join(s["agents"][:4])
+            if len(s["agents"]) > 4:
+                agents_str += f" +{len(s['agents']) - 4}"
+            print(
+                f"    {BOLD}{i}.{RESET} {s['name']} "
+                f"{DIM}\u2502 {s['workspace']} \u2502 "
+                f"{agents_str} \u2502 {s['msg_count']} msgs{RESET}"
+            )
+        print(f"    {BOLD}{len(sessions) + 1}.{RESET} New session")
+        print()
 
-    # initialize
+        raw = await asyncio.to_thread(
+            input, f"  {BOLD}Choose{RESET} {DIM}(1-{len(sessions) + 1}){RESET}: ",
+        )
+        choice = raw.strip()
+
+        if choice.isdigit() and 1 <= int(choice) <= len(sessions):
+            # resume existing session
+            picked = sessions[int(choice) - 1]
+            db_path = picked["path"]
+            workspace, agent_configs = load_session(db_path)
+            touch_session(db_path)
+            resuming = True
+            print(f"  {GREEN}\u2713{RESET} Resuming {BOLD}{picked['name']}{RESET}")
+            print()
+        # else: fall through to new session
+
+    if not resuming:
+        # ── new session wizard ───────────────────────────────────────────
+        workspace = await _ask_workspace()
+
+        agent_configs = await _setup_agents(providers)
+        if not agent_configs:
+            print(f"  {RED}No agents configured.{RESET}")
+            return
+
+        name = default_name(workspace)
+        db_path = str(session_path(name))
+        # avoid overwriting — append number if needed
+        base = db_path
+        n = 1
+        while os.path.exists(db_path):
+            db_path = base.replace(".db", f"-{n}.db")
+            n += 1
+
+    # ── initialize agents and bus ────────────────────────────────────────
+    assert db_path is not None
     print()
     print(f"  {DIM}Starting agents \u2026{RESET}")
-    bus = MessageBus()
+    bus = MessageBus(db_path)
     agents: list[ChatAgent] = []
 
     for cfg in agent_configs:
@@ -572,11 +673,17 @@ async def main():
         print(f"  {RED}No agents started.{RESET}")
         return
 
-    # run chat
+    # save config (idempotent for resumed sessions)
+    if not resuming:
+        save_session(db_path, workspace, agent_configs)
+    touch_session(db_path)
+
+    # ── run chat ─────────────────────────────────────────────────────────
     try:
-        await _chat_loop(bus, agents, workspace)
+        await _chat_loop(bus, agents, workspace, resuming=resuming)
     finally:
-        print(f"\n  {DIM}Shutting down \u2026{RESET}")
+        touch_session(db_path)
+        print(f"\n  {DIM}Session saved. Shutting down \u2026{RESET}")
         for agent in agents:
             await agent.stop()
         print(f"  {DIM}Done.{RESET}\n")
