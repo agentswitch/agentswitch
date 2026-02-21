@@ -10,11 +10,13 @@ if TYPE_CHECKING:
 from .claude import ClaudeProvider
 from .codex import CodexProvider
 from .cursor import CursorProvider
+from .gemini import GeminiProvider
 
 PROVIDER_CLASSES: dict[str, type[Provider]] = {
     "claude": ClaudeProvider,
     "codex": CodexProvider,
     "cursor": CursorProvider,
+    "gemini": GeminiProvider,
 }
 
 __all__ = [
@@ -22,4 +24,5 @@ __all__ = [
     "ClaudeProvider",
     "CodexProvider",
     "CursorProvider",
+    "GeminiProvider",
 ]

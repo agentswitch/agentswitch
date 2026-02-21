@@ -12,16 +12,19 @@ PERMISSIONS_MAP: dict[str, dict[str, list[str]]] = {
         "claude": ["--permission-mode", "default"],
         "codex": [],
         "cursor": [],
+        "gemini": [],
     },
     "readonly": {
         "claude": ["--permission-mode", "plan"],
         "codex": ["-s", "read-only"],
         "cursor": ["--mode", "plan"],
+        "gemini": ["--approval-mode", "plan"],
     },
     "full-auto": {
         "claude": ["--dangerously-skip-permissions"],
         "codex": ["--full-auto"],
         "cursor": [],
+        "gemini": ["-y"],
     },
 }
 

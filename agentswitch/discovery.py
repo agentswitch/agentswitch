@@ -23,6 +23,7 @@ _PROVIDER_SPECS: list[tuple[str, str, list[str], list[str]]] = [
     ("claude", "claude", ["claude", "--version"], ["claude", "auth", "status"]),
     ("codex", "codex", ["codex", "--version"], []),
     ("cursor", "cursor-agent", ["cursor-agent", "--version"], []),
+    ("gemini", "gemini", ["gemini", "--version"], []),
 ]
 
 

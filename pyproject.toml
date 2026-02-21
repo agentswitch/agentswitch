@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentswitch"
 version = "0.1.0"
-description = "One SDK for every AI coding agent — Claude Code, Codex CLI, Cursor Agent"
+description = "One SDK for every AI coding agent — Claude Code, Codex CLI, Cursor Agent, Gemini CLI"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

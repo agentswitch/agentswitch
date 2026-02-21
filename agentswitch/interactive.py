@@ -28,10 +28,13 @@ YELLOW = "\033[33m"
 MAGENTA = "\033[35m"
 CYAN = "\033[36m"
 
+BLUE = "\033[34m"
+
 PROVIDER_COLORS: dict[str, str] = {
     "claude": MAGENTA,
     "codex": GREEN,
     "cursor": CYAN,
+    "gemini": BLUE,
 }
 
 

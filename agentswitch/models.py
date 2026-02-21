@@ -134,25 +134,39 @@ MODELS: list[ModelInfo] = [
 
     # ── Gemini ────────────────────────────────────────────────────────────
     ModelInfo(
+        id="gemini-2.5-pro",
+        name="Gemini 2.5 Pro",
+        family="gemini",
+        provider_ids={"gemini": "gemini-2.5-pro", "cursor": "gemini-3.1-pro"},
+        capabilities=["thinking", "web_search"],
+    ),
+    ModelInfo(
+        id="gemini-2.5-flash",
+        name="Gemini 2.5 Flash",
+        family="gemini",
+        provider_ids={"gemini": "gemini-2.5-flash", "cursor": "gemini-3-flash"},
+        capabilities=["web_search"],
+    ),
+    ModelInfo(
         id="gemini-3.1-pro",
         name="Gemini 3.1 Pro",
         family="gemini",
         provider_ids={"cursor": "gemini-3.1-pro"},
-        capabilities=[],
+        capabilities=["web_search"],
     ),
     ModelInfo(
         id="gemini-3-pro",
         name="Gemini 3 Pro",
         family="gemini",
         provider_ids={"cursor": "gemini-3-pro"},
-        capabilities=[],
+        capabilities=["web_search"],
     ),
     ModelInfo(
         id="gemini-3-flash",
         name="Gemini 3 Flash",
         family="gemini",
         provider_ids={"cursor": "gemini-3-flash"},
-        capabilities=[],
+        capabilities=["web_search"],
     ),
 
     # ── Grok ──────────────────────────────────────────────────────────────

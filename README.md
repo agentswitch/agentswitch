@@ -2,9 +2,16 @@
 
 **One SDK for every AI coding agent.**
 
-Claude Code, Codex CLI, Cursor Agent — each has its own CLI, its own streaming format, its own quirks. If you want to use more than one, you're writing three integrations. If one hits a rate limit, you're stuck.
+[![Claude Code](https://img.shields.io/npm/v/@anthropic-ai/claude-code?label=Claude%20Code&color=7c3aed)](https://www.npmjs.com/package/@anthropic-ai/claude-code)
+[![Codex CLI](https://img.shields.io/npm/v/@openai/codex?label=Codex%20CLI&color=10a37f)](https://www.npmjs.com/package/@openai/codex)
+[![Gemini CLI](https://img.shields.io/npm/v/@google/gemini-cli?label=Gemini%20CLI&color=4285f4)](https://www.npmjs.com/package/@google/gemini-cli)
+[![Cursor Agent](https://img.shields.io/badge/Cursor%20Agent-latest-0094ff)](https://docs.cursor.com/agent)
+
+Claude Code, Codex CLI, Cursor Agent, Gemini CLI — each has its own CLI, its own streaming format, its own quirks. If you want to use more than one, you're writing four integrations. If one hits a rate limit, you're stuck.
 
 AgentSwitch gives you a single async Python interface across all of them. Send a prompt, get a unified event stream. Switch providers mid-conversation. Auto-failover when one is down. Zero dependencies beyond stdlib.
+
+## Install AgentSwitch
 
 ```bash
 pip install git+https://github.com/agentswitch/agentswitch.git
@@ -18,7 +25,39 @@ cd agentswitch
 pip install -e .
 ```
 
-> Requires Python 3.11+ and at least one CLI installed: `claude`, `codex`, or `cursor-agent`
+> Requires Python 3.10+ and at least one provider CLI installed.
+
+## Keeping things updated
+
+**AgentSwitch:**
+
+```bash
+# If installed from git
+pip install --upgrade git+https://github.com/agentswitch/agentswitch.git
+
+# If installed from source (editable)
+cd agentswitch && git pull
+```
+
+**Provider CLIs:**
+
+```bash
+npm update -g @anthropic-ai/claude-code    # Claude Code
+npm update -g @openai/codex                 # Codex CLI
+npm update -g @google/gemini-cli            # Gemini CLI
+curl https://cursor.com/install -fsS | bash # Cursor Agent (re-run installer)
+```
+
+## Install provider CLIs
+
+You need at least one of these installed:
+
+| Provider | Install command |
+|---|---|
+| **Claude Code** | `npm install -g @anthropic-ai/claude-code` |
+| **Codex CLI** | `npm install -g @openai/codex` |
+| **Gemini CLI** | `npm install -g @google/gemini-cli` |
+| **Cursor Agent** | `curl https://cursor.com/install -fsS \| bash` |
 
 ## Quick start
 
@@ -53,6 +92,10 @@ async for event in session.send("Explain this codebase", provider="claude"):
 # Switch to Codex mid-conversation — context carries over
 async for event in session.send("Now refactor the auth module", provider="codex"):
     ...
+
+# Try Gemini
+async for event in session.send("Add tests for the auth module", provider="gemini"):
+    ...
 ```
 
 ## Auto-failover
@@ -61,7 +104,7 @@ If Claude is rate-limited, AgentSwitch automatically tries the next provider:
 
 ```python
 session = router.session(
-    fallback_order=["claude", "codex", "cursor"],
+    fallback_order=["claude", "codex", "gemini", "cursor"],
     auto_failover=True,
 )
 ```
@@ -116,6 +159,7 @@ Discovering providers...
   claude v2.1.49 [ok]
   codex  v0.104.0 [ok]
   cursor v2026.02 [ok]
+  gemini v0.1.17 [ok]
 
 Ready. Using claude. Type /help for commands.
 
@@ -128,6 +172,7 @@ Ready. Using claude. Type /help for commands.
 |---|---|---|
 | `/provider claude` | `/p` | Switch provider (hot-swap) |
 | `/model sonnet-4.6` | `/m` | Change model |
+| `/models` | | List all known models |
 | `/permissions full-auto` | `/perm` | Set permissions |
 | `/workspace ~/project` | `/ws` | Change working directory |
 | `/providers` | | List discovered providers |
@@ -142,6 +187,7 @@ Ready. Using claude. Type /help for commands.
 ./mux-claude.sh            # claude + full-auto
 ./mux-codex.sh             # codex + full-auto
 ./mux-cursor.sh            # cursor + full-auto
+./mux-gemini.sh            # gemini + full-auto
 ./mux-readonly.sh          # safe read-only mode
 ```
 
@@ -151,6 +197,7 @@ Ready. Using claude. Type /help for commands.
 |---|---|---|
 | Claude Code | `claude` | Streaming, tools, thinking |
 | Codex CLI | `codex` | Streaming, tools, reasoning |
+| Gemini CLI | `gemini` | Streaming, tools, thinking |
 | Cursor Agent | `cursor-agent` | Streaming, tools |
 
 ## SDK roadmap
@@ -166,6 +213,7 @@ What's working today vs what's next:
 | Interactive REPL | Done |
 | Permission levels (default/readonly/full-auto) | Done |
 | Tool use events (start/end/output) | Done |
+| Unified model registry | Done |
 | `pip install` from source/git | Done |
 | Custom tool injection (MCP passthrough) | Not yet |
 | Bidirectional streaming (long-lived sessions) | Not yet |
@@ -182,6 +230,7 @@ agentswitch/
 ├── session.py         # Session — transcript, hot-swap, failover
 ├── types.py           # Event, EventType, Message, ToolCall
 ├── config.py          # SessionConfig, ProviderConfig, permissions
+├── models.py          # Unified model registry across providers
 ├── discovery.py       # CLI detection + version/auth checks
 ├── errors.py          # AgentSwitchError hierarchy
 ├── _subprocess.py     # Async process spawn + JSONL reader
@@ -191,10 +240,11 @@ agentswitch/
     ├── base.py        # Provider abstract base class
     ├── claude.py      # Claude Code adapter
     ├── codex.py       # Codex CLI adapter
-    └── cursor.py      # Cursor Agent adapter
+    ├── cursor.py      # Cursor Agent adapter
+    └── gemini.py      # Gemini CLI adapter
 ```
 
-Zero external dependencies. Python 3.11+ stdlib only.
+Zero external dependencies. Python 3.10+ stdlib only.
 
 ## License
 
