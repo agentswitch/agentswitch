@@ -1,6 +1,6 @@
-# AgentSwitch
-
-**One SDK for every AI coding agent.**
+<p align="center">
+  <img src="assets/logo.svg" alt="AgentSwitch" width="800"/>
+</p>
 
 [![Claude Code](https://img.shields.io/npm/v/@anthropic-ai/claude-code?label=Claude%20Code&color=7c3aed)](https://www.npmjs.com/package/@anthropic-ai/claude-code)
 [![Codex CLI](https://img.shields.io/npm/v/@openai/codex?label=Codex%20CLI&color=10a37f)](https://www.npmjs.com/package/@openai/codex)
