@@ -385,10 +385,14 @@ async def _handle_command(
 
 # ── chat loop (raw terminal) ────────────────────────────────────────────────
 
+MAX_AGENT_ROUNDS = 3  # max agent-to-agent exchanges per human message
+
+
 async def _chat_loop(bus: MessageBus, agents: list[ChatAgent], workspace: str):
     team = [a.config for a in agents]
     last_id = 0
     bg_tasks: set[asyncio.Task] = set()
+    agent_rounds = 0  # counts agent-to-agent exchanges since last human msg
 
     # header
     print()
@@ -448,6 +452,7 @@ async def _chat_loop(bus: MessageBus, agents: list[ChatAgent], workspace: str):
                         continue
 
                     # regular chat message
+                    agent_rounds = 0  # reset agent-to-agent counter
                     bus.post("You", "chat", {"text": text})
                     chat_history = bus.get_recent(50)
 
@@ -471,13 +476,42 @@ async def _chat_loop(bus: MessageBus, agents: list[ChatAgent], workspace: str):
 
                     term.redraw()
 
-            # ── display new bus messages ─────────────────────────────────
+            # ── display new bus messages + agent-to-agent replies ────────
             new = bus.poll_since(last_id)
             for msg in new:
                 last_id = msg.id
                 rendered = _render_bus_msg(msg, agents)
                 if rendered:
                     term.println(rendered)
+
+                # Agent-to-agent: when an agent @mentions another, trigger reply
+                if (
+                    msg.kind == "chat"
+                    and msg.sender != "You"
+                    and agent_rounds < MAX_AGENT_ROUNDS
+                ):
+                    mentioned = _parse_mentions(
+                        msg.body.get("text", ""), agents,
+                    )
+                    responders = [
+                        a for a in mentioned
+                        if a.config.name != msg.sender
+                        and a.state == AgentState.IDLE
+                    ]
+                    if responders:
+                        agent_rounds += 1
+                        for agent in responders:
+                            async def _cross_reply(a=agent):
+                                history = bus.get_recent(50)
+                                resp, tools = await a.respond(history, team)
+                                if resp:
+                                    bus.post(a.config.name, "chat", {"text": resp})
+                                if tools:
+                                    bus.post(a.config.name, "status", {
+                                        "state": "idle",
+                                        "detail": f"used {', '.join(tools)}",
+                                    })
+                            bg_tasks.add(asyncio.create_task(_cross_reply()))
 
             # ── clean up finished tasks ──────────────────────────────────
             done = {t for t in bg_tasks if t.done()}

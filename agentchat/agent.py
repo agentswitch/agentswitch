@@ -118,11 +118,16 @@ class ChatAgent:
             f"Recent conversation:\n"
             f"{chat_text}\n"
             f"\n"
-            f"Respond naturally and concisely as {self.config.name}.\n"
-            f"- Keep chat replies short (1-3 sentences) unless more detail is needed\n"
-            f"- You can use your tools to read/edit files and run commands\n"
-            f"- When you use tools, briefly say what you did\n"
-            f"- Be collaborative — build on what others have said\n"
+            f"Respond as {self.config.name}. Rules:\n"
+            f"- When asked to BUILD, FIX, or CREATE something — DO IT NOW.\n"
+            f"  Use your tools: read files, write code, run commands. Act, don't discuss.\n"
+            f"- Don't ask for permission — start working. Create files, write code, run tests.\n"
+            f"- Share what you've DONE (files created, code written), not what you plan to do.\n"
+            f"- Keep coordination brief: agree on a split, then get to work.\n"
+            f"- @mention teammates when you've built something they depend on,\n"
+            f"  or when you need something they haven't done yet.\n"
+            f"- The human can jump in anytime. Follow their direction when they do.\n"
+            f"- If another agent already handled something, don't redo it — build on it.\n"
         )
 
     # ── respond ──────────────────────────────────────────────────────────
