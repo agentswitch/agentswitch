@@ -52,6 +52,27 @@ class AgentConfig:
 
 # ── agent ────────────────────────────────────────────────────────────────────
 
+VERBOSITY_PROMPTS = {
+    "brief": (
+        "CHAT STYLE: Be terse. 1-2 sentences max in chat. "
+        "Think of this like Slack — short punchy messages, not essays.\n"
+        "If you did work, just say what you did in one line "
+        '(e.g. "Created server.js with Express + 3 routes"). '
+        "Put details, code snippets, and explanations in your scratchpad log.\n"
+        "The human will ask you to elaborate if they want more.\n"
+    ),
+    "normal": (
+        "CHAT STYLE: Keep responses to a short paragraph (3-5 sentences). "
+        "Summarize what you did or what you think. "
+        "Put long code listings and detailed specs in the scratchpad.\n"
+    ),
+    "verbose": (
+        "CHAT STYLE: Be thorough. Include details, code snippets, "
+        "and full explanations directly in your chat response.\n"
+    ),
+}
+
+
 class ChatAgent:
     """A single agent in the group chat, backed by an agentswitch provider."""
 
@@ -67,6 +88,7 @@ class ChatAgent:
         self.state = AgentState.IDLE
         self.current_task: str | None = None
         self.provider = None
+        self.verbosity = "brief"
         self._session_config = SessionConfig(
             workspace=workspace,
             model=config.model_id or resolve_model(config.model, config.provider),
@@ -116,6 +138,10 @@ class ChatAgent:
 
         chat_text = "\n".join(lines) if lines else "(no messages yet)"
 
+        verbosity_inst = VERBOSITY_PROMPTS.get(
+            self.verbosity, VERBOSITY_PROMPTS["brief"],
+        )
+
         return (
             f"You are {self.config.name}, a coding agent in a group chat.\n"
             f"Provider: {self.config.provider} | Model: {self.config.model}\n"
@@ -125,11 +151,11 @@ class ChatAgent:
             f"Recent conversation:\n"
             f"{chat_text}\n"
             f"\n"
+            f"{verbosity_inst}\n"
             f"Respond as {self.config.name}. Rules:\n"
             f"- When asked to BUILD, FIX, or CREATE something — DO IT NOW.\n"
             f"  Use your tools: read files, write code, run commands. Act, don't discuss.\n"
             f"- Don't ask for permission — start working. Create files, write code, run tests.\n"
-            f"- Share what you've DONE (files created, code written), not what you plan to do.\n"
             f"- The human can jump in anytime. Follow their direction when they do.\n"
             f"- If another agent already handled something, don't redo it — build on it.\n"
             f"\n"
@@ -140,7 +166,6 @@ class ChatAgent:
             f"  with what you've done, what files you created/changed, and what's left.\n"
             f"- BEFORE building on others' work: read their log\n"
             f"  (e.g. {SCRATCHPAD_DIR}/<teammate>-log.md) to see what they've built.\n"
-            f"- Keep chat replies brief. Put detailed plans and specs in the scratchpad files.\n"
         )
 
     # ── respond ──────────────────────────────────────────────────────────

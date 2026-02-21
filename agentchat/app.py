@@ -297,6 +297,9 @@ _HELP_TEXT = f"""
     {BOLD}/history{RESET}            Show recent messages
     {BOLD}/plan{RESET}               Show shared plan (.agentchat/plan.md)
     {BOLD}/logs{RESET}               Show agent work logs
+    {BOLD}/brief{RESET}              Terse replies (default) — 1-2 sentences
+    {BOLD}/normal{RESET}             Medium replies — short paragraph
+    {BOLD}/verbose{RESET}            Detailed replies — full explanations
     {BOLD}/sessions{RESET}           List saved sessions
     {BOLD}/clear{RESET}              Clear the screen
     {BOLD}/help{RESET}               Show this help
@@ -413,6 +416,16 @@ async def _handle_command(
                 for line in f.read().splitlines()[:20]:
                     term.println(f"    {line}")
             term.println("")
+        return False
+
+    if cmd in ("/brief", "/normal", "/verbose"):
+        level = cmd.lstrip("/")
+        for a in agents:
+            a.verbosity = level
+        labels = {"brief": "terse (1-2 sentences)",
+                  "normal": "short paragraph",
+                  "verbose": "full detail"}
+        term.println(f"  {GREEN}\u2713{RESET} Chat style: {BOLD}{labels[level]}{RESET}")
         return False
 
     if cmd == "/assign":
