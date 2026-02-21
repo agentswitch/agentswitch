@@ -73,6 +73,85 @@ async def _async_input(prompt: str) -> str:
     return await loop.run_in_executor(None, lambda: input(prompt))
 
 
+# ── Provider detail parsing ──────────────────────────────────────────────────
+
+def _parse_provider_details(raw: dict) -> dict[str, str]:
+    """Extract displayable details from a provider's init/system event."""
+    details: dict[str, str] = {}
+
+    # Model
+    model = raw.get("model", "")
+    if model:
+        details["model"] = model
+
+    # Auth source
+    api_key_source = raw.get("apiKeySource", "")
+    if api_key_source:
+        label = {"none": "OAuth", "login": "login", "env": "API key"}.get(
+            api_key_source, api_key_source
+        )
+        details["auth"] = label
+
+    # Permission mode
+    perm = raw.get("permissionMode", "")
+    if perm:
+        details["permissions"] = perm
+
+    # Tools
+    tools = raw.get("tools", [])
+    if tools:
+        details["tools"] = f"{len(tools)} ({', '.join(tools[:5])}{'...' if len(tools) > 5 else ''})"
+
+    # Version
+    version = raw.get("claude_code_version", "")
+    if version:
+        details["version"] = version
+
+    # Modes / agents
+    agents = raw.get("agents", [])
+    if agents:
+        details["modes"] = ", ".join(agents)
+
+    return details
+
+
+def _print_provider_details(provider: str, details: dict[str, str]) -> None:
+    """Print a compact provider detail block."""
+    color = PROVIDER_COLORS.get(provider, "")
+    print(f"{color}{BOLD}{provider}{RESET} connected:")
+    for key, val in details.items():
+        print(f"  {DIM}{key}:{RESET} {val}")
+
+
+# ── Turn status line ─────────────────────────────────────────────────────────
+
+def _print_turn_status(state: ReplState) -> None:
+    """Print a compact status line before each turn."""
+    color = PROVIDER_COLORS.get(state.provider, "")
+    parts = [
+        f"{color}{BOLD}{state.provider}{RESET}",
+    ]
+
+    # Show the actual model reported by provider, falling back to configured
+    model = state.model
+    if state.provider in state.provider_details:
+        model = state.provider_details[state.provider].get("model", model)
+    parts.append(model or "default")
+
+    parts.append(state.permissions)
+
+    # Show auth if known
+    if state.provider in state.provider_details:
+        auth = state.provider_details[state.provider].get("auth", "")
+        if auth:
+            parts.append(f"auth:{auth}")
+
+    turn = len(state.session.transcript) // 2 + 1
+    parts.append(f"turn {turn}")
+
+    print(f"{DIM}{'  '.join(parts)}{RESET}")
+
+
 # ── Event printer ─────────────────────────────────────────────────────────────
 
 def _print_event(event, provider_color: str) -> None:  # noqa: ANN001
@@ -80,7 +159,6 @@ def _print_event(event, provider_color: str) -> None:  # noqa: ANN001
         sys.stdout.write(f"{provider_color}{event.text}{RESET}")
         sys.stdout.flush()
     elif event.type is EventType.TEXT_COMPLETE:
-        # Ensure we end on a new line after streaming
         sys.stdout.write("\n")
         sys.stdout.flush()
     elif event.type is EventType.THINKING:
@@ -119,8 +197,8 @@ class ReplState:
             if args.fallback
             else []
         )
-
-    # Convenience ---------------------------------------------------------
+        # Provider details captured from init events (provider -> {key: value})
+        self.provider_details: dict[str, dict[str, str]] = {}
 
     @property
     def prompt(self) -> str:
@@ -148,6 +226,9 @@ def _handle_command(line: str, state: ReplState) -> bool:
         state.provider = arg
         color = PROVIDER_COLORS.get(arg, "")
         print(f"Switched to {color}{arg}{RESET}")
+        # Show cached details if we've connected before
+        if arg in state.provider_details:
+            _print_provider_details(arg, state.provider_details[arg])
 
     # ── model ──
     elif cmd in ("/model", "/m"):
@@ -191,7 +272,7 @@ def _handle_command(line: str, state: ReplState) -> bool:
         if arg.lower() in ("on", "true", "1"):
             state.auto_failover = True
             state.session.config(auto_failover=True)
-            print("Auto-failover {BOLD}enabled{RESET}")
+            print(f"Auto-failover {BOLD}enabled{RESET}")
         elif arg.lower() in ("off", "false", "0"):
             state.auto_failover = False
             state.session.config(auto_failover=False)
@@ -226,19 +307,41 @@ def _handle_command(line: str, state: ReplState) -> bool:
                 auth = f"{GREEN}authenticated" if info.authenticated else f"{RED}not authenticated"
                 active = " *" if name == state.provider else ""
                 print(f"  {color}{BOLD}{name}{RESET} v{info.version} [{auth}{RESET}]{active}")
+                # Show live details if captured
+                if name in state.provider_details:
+                    for key, val in state.provider_details[name].items():
+                        print(f"    {DIM}{key}:{RESET} {val}")
 
     # ── config ──
     elif cmd == "/config":
         print(f"  provider:      {BOLD}{state.provider or 'auto'}{RESET}")
-        print(f"  model:         {BOLD}{state.model or 'default'}{RESET}")
+        model = state.model
+        if state.provider in state.provider_details:
+            actual = state.provider_details[state.provider].get("model", "")
+            if actual and actual != model:
+                model = f"{model or 'default'} {DIM}(actual: {actual}){RESET}"
+        print(f"  model:         {BOLD}{model or 'default'}{RESET}")
         print(f"  permissions:   {BOLD}{state.permissions}{RESET}")
+        if state.provider in state.provider_details:
+            actual_perm = state.provider_details[state.provider].get("permissions", "")
+            if actual_perm:
+                print(f"  {DIM}(reported: {actual_perm}){RESET}")
         print(f"  workspace:     {BOLD}{state.workspace}{RESET}")
         print(f"  failover:      {BOLD}{', '.join(state.fallback_order) or 'auto'}{RESET}")
         print(f"  auto-failover: {BOLD}{'on' if state.auto_failover else 'off'}{RESET}")
+        if state.provider in state.provider_details:
+            auth = state.provider_details[state.provider].get("auth", "")
+            if auth:
+                print(f"  auth:          {BOLD}{auth}{RESET}")
+            tools = state.provider_details[state.provider].get("tools", "")
+            if tools:
+                print(f"  tools:         {BOLD}{tools}{RESET}")
+            modes = state.provider_details[state.provider].get("modes", "")
+            if modes:
+                print(f"  modes:         {BOLD}{modes}{RESET}")
 
     # ── clear ──
     elif cmd == "/clear":
-        # Recreate session to clear transcript
         state.session = state.router.session(
             workspace=state.workspace,
             model=state.model,
@@ -246,6 +349,7 @@ def _handle_command(line: str, state: ReplState) -> bool:
             fallback_order=state.fallback_order or None,
             auto_failover=state.auto_failover,
         )
+        state.provider_details.clear()
         print(f"{DIM}Transcript cleared, new session started.{RESET}")
 
     # ── help ──
@@ -322,15 +426,28 @@ async def run(args: Namespace) -> None:
                     break
                 continue
 
+            # Print turn status line
+            _print_turn_status(state)
+
             # Send message to provider
             provider_color = PROVIDER_COLORS.get(state.provider, "")
+            first_session_start = state.provider not in state.provider_details
             try:
                 async for event in session.send(
                     line,
                     provider=state.provider or None,
                     model=state.model or None,
                 ):
-                    _print_event(event, provider_color)
+                    # Capture provider details from init event
+                    if event.type is EventType.SESSION_START and event.raw:
+                        details = _parse_provider_details(event.raw)
+                        if details:
+                            state.provider_details[state.provider] = details
+                            if first_session_start:
+                                _print_provider_details(state.provider, details)
+                                first_session_start = False
+                    else:
+                        _print_event(event, provider_color)
             except ProviderNotFound as exc:
                 print(f"\n{RED}Provider not found: {exc.provider}{RESET}")
                 print(f"{DIM}Use /providers to see available providers.{RESET}")
