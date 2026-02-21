@@ -6,10 +6,14 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
+import os
+
 from agentswitch.config import SessionConfig
 from agentswitch.models import resolve_model
 from agentswitch.providers import PROVIDER_CLASSES
 from agentswitch.types import EventType, Message
+
+SCRATCHPAD_DIR = ".agentchat"
 
 if TYPE_CHECKING:
     from .bus import ChatMessage, MessageBus
@@ -75,6 +79,9 @@ class ChatAgent:
             raise ValueError(f"Unknown provider: {self.config.provider}")
         self.provider = provider_cls()
         await self.provider.start(self._session_config)
+        # ensure shared scratchpad directory
+        pad = os.path.join(self.workspace, SCRATCHPAD_DIR)
+        os.makedirs(pad, exist_ok=True)
 
     async def stop(self) -> None:
         if self.provider:
@@ -123,11 +130,17 @@ class ChatAgent:
             f"  Use your tools: read files, write code, run commands. Act, don't discuss.\n"
             f"- Don't ask for permission — start working. Create files, write code, run tests.\n"
             f"- Share what you've DONE (files created, code written), not what you plan to do.\n"
-            f"- Keep coordination brief: agree on a split, then get to work.\n"
-            f"- @mention teammates when you've built something they depend on,\n"
-            f"  or when you need something they haven't done yet.\n"
             f"- The human can jump in anytime. Follow their direction when they do.\n"
             f"- If another agent already handled something, don't redo it — build on it.\n"
+            f"\n"
+            f"Team coordination — use {SCRATCHPAD_DIR}/ in the workspace:\n"
+            f"- BEFORE starting work: read {SCRATCHPAD_DIR}/plan.md to see the team plan.\n"
+            f"  If it doesn't exist yet, create it with the high-level plan and your role.\n"
+            f"- WHILE working: update {SCRATCHPAD_DIR}/{self.config.name.lower()}-log.md\n"
+            f"  with what you've done, what files you created/changed, and what's left.\n"
+            f"- BEFORE building on others' work: read their log\n"
+            f"  (e.g. {SCRATCHPAD_DIR}/<teammate>-log.md) to see what they've built.\n"
+            f"- Keep chat replies brief. Put detailed plans and specs in the scratchpad files.\n"
         )
 
     # ── respond ──────────────────────────────────────────────────────────

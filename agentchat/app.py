@@ -295,8 +295,9 @@ _HELP_TEXT = f"""
     {BOLD}/assign @name task{RESET}  Assign a coding task to an agent
     {BOLD}/status{RESET}             Show agent states
     {BOLD}/history{RESET}            Show recent messages
+    {BOLD}/plan{RESET}               Show shared plan (.agentchat/plan.md)
+    {BOLD}/logs{RESET}               Show agent work logs
     {BOLD}/sessions{RESET}           List saved sessions
-    {BOLD}/save [name]{RESET}        Save current session with a name
     {BOLD}/clear{RESET}              Clear the screen
     {BOLD}/help{RESET}               Show this help
     {BOLD}/quit{RESET}               Exit
@@ -309,8 +310,11 @@ async def _handle_command(
     bus: MessageBus,
     agents: list[ChatAgent],
     bg_tasks: set[asyncio.Task],
+    workspace: str = ".",
 ) -> bool:
     """Handle a slash command. Returns True to quit."""
+    from .agent import SCRATCHPAD_DIR
+
     parts = text.split(None, 1)
     cmd = parts[0].lower()
     args = parts[1] if len(parts) > 1 else ""
@@ -369,9 +373,46 @@ async def _handle_command(
         return False
 
     if cmd == "/save":
-        # args is the optional name
         term.println(f"  {DIM}Session is auto-saved. "
                      f"Chat history persists across restarts.{RESET}")
+        return False
+
+    if cmd == "/plan":
+        plan_path = os.path.join(workspace, SCRATCHPAD_DIR, "plan.md")
+        if os.path.isfile(plan_path):
+            term.println(f"\n  {BOLD}Shared plan{RESET} {DIM}({plan_path}){RESET}")
+            with open(plan_path) as f:
+                for line in f.read().splitlines()[:40]:
+                    term.println(f"    {line}")
+            term.println("")
+        else:
+            term.println(f"  {DIM}No plan yet. Agents will create "
+                         f"{SCRATCHPAD_DIR}/plan.md when they start working.{RESET}")
+        return False
+
+    if cmd == "/logs":
+        pad = os.path.join(workspace, SCRATCHPAD_DIR)
+        if not os.path.isdir(pad):
+            term.println(f"  {DIM}No logs yet.{RESET}")
+            return False
+        log_files = sorted(
+            f for f in os.listdir(pad) if f.endswith("-log.md")
+        )
+        if not log_files:
+            term.println(f"  {DIM}No agent logs yet.{RESET}")
+            return False
+        term.println("")
+        for lf in log_files:
+            agent_name = lf.replace("-log.md", "")
+            color = _color_for(agent_name, agents) or _color_for(
+                agent_name.capitalize(), agents,
+            )
+            term.println(f"  {color}{BOLD}{agent_name}{RESET} "
+                         f"{DIM}({SCRATCHPAD_DIR}/{lf}){RESET}")
+            with open(os.path.join(pad, lf)) as f:
+                for line in f.read().splitlines()[:20]:
+                    term.println(f"    {line}")
+            term.println("")
         return False
 
     if cmd == "/assign":
@@ -497,7 +538,7 @@ async def _chat_loop(
 
                     if text.startswith("/"):
                         should_quit = await _handle_command(
-                            text, term, bus, agents, bg_tasks,
+                            text, term, bus, agents, bg_tasks, workspace,
                         )
                         if should_quit:
                             break
