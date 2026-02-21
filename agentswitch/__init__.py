@@ -6,6 +6,7 @@ hot-swapping, dynamic config, and auto-failover.
 """
 
 from .config import ProviderConfig, SessionConfig
+from .models import ModelInfo, get_model, models_for_provider, resolve_model
 from .discovery import ProviderInfo
 from .errors import (
     AgentSwitchError,
@@ -25,6 +26,7 @@ __all__ = [
     "Event",
     "EventType",
     "Message",
+    "ModelInfo",
     "ProviderAuthError",
     "ProviderConfig",
     "ProviderInfo",

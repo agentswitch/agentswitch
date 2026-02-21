@@ -8,6 +8,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from .errors import AllProvidersExhausted, ProviderNotFound, RateLimitError
+from .models import get_model, identify_model, models_for_provider, resolve_model
 from .router import AgentRouter
 from .types import EventType
 
@@ -52,7 +53,8 @@ BANNER = rf"""
 HELP_TEXT = f"""\
 {BOLD}Commands:{RESET}
   /provider <name>    (/p)     Switch provider (claude, codex, cursor)
-  /model <name>       (/m)     Change model
+  /model <name>       (/m)     Change model (use unified name, e.g. opus-4.6)
+  /models                      List available models for current provider
   /permissions <lvl>  (/perm)  Set permissions (default, readonly, full-auto)
   /workspace <path>   (/ws)    Change workspace directory
   /failover <p1,p2>            Set failover order
@@ -132,10 +134,12 @@ def _print_turn_status(state: ReplState) -> None:
         f"{color}{BOLD}{state.provider}{RESET}",
     ]
 
-    # Show the actual model reported by provider, falling back to configured
+    # Show unified model name if possible, else raw provider ID
     model = state.model
-    if state.provider in state.provider_details:
-        model = state.provider_details[state.provider].get("model", model)
+    if not model and state.provider in state.provider_details:
+        raw_model = state.provider_details[state.provider].get("model", "")
+        info = identify_model(raw_model)
+        model = info.id if info else raw_model
     parts.append(model or "default")
 
     parts.append(state.permissions)
@@ -236,7 +240,44 @@ def _handle_command(line: str, state: ReplState) -> bool:
             print(f"{RED}Usage: /model <name>{RESET}")
             return True
         state.model = arg
-        print(f"Model set to {BOLD}{arg}{RESET}")
+        # Show what it resolves to for the current provider
+        resolved = resolve_model(arg, state.provider)
+        info = get_model(arg)
+        if info:
+            caps = f"  [{', '.join(info.capabilities)}]" if info.capabilities else ""
+            print(f"Model set to {BOLD}{info.name}{RESET}{caps}")
+            if resolved != arg:
+                print(f"  {DIM}→ {state.provider}: {resolved}{RESET}")
+        else:
+            print(f"Model set to {BOLD}{arg}{RESET} {DIM}(not in registry, passing through){RESET}")
+
+    # ── models ──
+    elif cmd == "/models":
+        # Filter by provider or show all
+        target = arg if arg and arg in state.router.providers else state.provider
+        available = models_for_provider(target)
+        color = PROVIDER_COLORS.get(target, "")
+        if not available:
+            print(f"{DIM}No known models for {target}.{RESET}")
+        else:
+            cur_family = ""
+            for m in available:
+                if m.family != cur_family:
+                    cur_family = m.family
+                    print(f"\n  {BOLD}{cur_family.upper()}{RESET}")
+                active = " *" if state.model == m.id else ""
+                caps = ""
+                if m.capabilities:
+                    caps = f" {DIM}[{', '.join(m.capabilities)}]{RESET}"
+                cli_id = m.provider_ids.get(target, "")
+                print(f"    {color}{m.id:<25}{RESET} {m.name}{caps}")
+                if cli_id != m.id:
+                    print(f"    {DIM}{'':25} → {cli_id}{RESET}")
+            # Also show which providers share each model
+            print(f"\n  {DIM}Use /model <id> to switch. Models with multiple providers can be hot-swapped.{RESET}")
+            cross = [m for m in available if len(m.provider_ids) > 1]
+            if cross:
+                print(f"  {DIM}Cross-provider: {', '.join(m.id for m in cross)}{RESET}")
 
     # ── permissions ──
     elif cmd in ("/permissions", "/perm"):
@@ -429,14 +470,15 @@ async def run(args: Namespace) -> None:
             # Print turn status line
             _print_turn_status(state)
 
-            # Send message to provider
+            # Send message to provider (resolve unified model name)
             provider_color = PROVIDER_COLORS.get(state.provider, "")
+            resolved_model = resolve_model(state.model, state.provider) if state.model else None
             first_session_start = state.provider not in state.provider_details
             try:
                 async for event in session.send(
                     line,
                     provider=state.provider or None,
-                    model=state.model or None,
+                    model=resolved_model,
                 ):
                     # Capture provider details from init event
                     if event.type is EventType.SESSION_START and event.raw:
