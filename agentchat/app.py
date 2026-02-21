@@ -300,6 +300,7 @@ _HELP_TEXT = f"""
     {BOLD}/brief{RESET}              Terse replies (default) — 1-2 sentences
     {BOLD}/normal{RESET}             Medium replies — short paragraph
     {BOLD}/verbose{RESET}            Detailed replies — full explanations
+    {BOLD}/turns N{RESET}            Max agent-to-agent rounds (default 3)
     {BOLD}/sessions{RESET}           List saved sessions
     {BOLD}/clear{RESET}              Clear the screen
     {BOLD}/help{RESET}               Show this help
@@ -428,6 +429,21 @@ async def _handle_command(
         term.println(f"  {GREEN}\u2713{RESET} Chat style: {BOLD}{labels[level]}{RESET}")
         return False
 
+    if cmd == "/turns":
+        global max_agent_rounds
+        if args.strip().isdigit():
+            max_agent_rounds = int(args.strip())
+            term.println(
+                f"  {GREEN}\u2713{RESET} Agent-to-agent turns: "
+                f"{BOLD}{max_agent_rounds}{RESET}"
+            )
+        else:
+            term.println(
+                f"  Agent-to-agent turns: {BOLD}{max_agent_rounds}{RESET} "
+                f"{DIM}(usage: /turns N){RESET}"
+            )
+        return False
+
     if cmd == "/assign":
         m = re.match(r"@(\S+)\s+(.+)", args)
         if not m:
@@ -472,7 +488,7 @@ async def _handle_command(
 
 # ── chat loop (raw terminal) ────────────────────────────────────────────────
 
-MAX_AGENT_ROUNDS = 3  # max agent-to-agent exchanges per human message
+max_agent_rounds = 3  # max agent-to-agent exchanges per human message
 
 
 async def _chat_loop(
@@ -596,7 +612,7 @@ async def _chat_loop(
                 if (
                     msg.kind == "chat"
                     and msg.sender != "You"
-                    and agent_rounds < MAX_AGENT_ROUNDS
+                    and agent_rounds < max_agent_rounds
                 ):
                     mentioned = _parse_mentions(
                         msg.body.get("text", ""), agents,
